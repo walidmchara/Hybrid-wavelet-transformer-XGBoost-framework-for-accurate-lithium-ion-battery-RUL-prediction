@@ -1,0 +1,28 @@
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.ipynb_checkpoints/
+.DS_Store
+
+# Data
+data/*.mat
+data/*.csv
+data/*.xlsx
+data/*.h5
+
+# Outputs/models
+outputs/*
+!outputs/.gitkeep
+*.pt
+*.pth
+*.joblib
+*.pkl
+
+# IDE
+.vscode/
+.idea/
