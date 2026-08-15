@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this code, please cite the corresponding paper."
+title: "WTX-CBO Battery RUL Prediction"
+type: software
+authors:
+  - family-names: Mchara
+    given-names: Walid
+  - family-names: Raissi
+    given-names: Monia
+version: 1.0.0
+date-released: 2026-08-15
+preferred-citation:
+  type: article
+  title: "Hybrid wavelet–transformer–XGBoost framework optimized via chaotic billiards for accurate lithium-ion battery remaining useful life prediction in electric vehicles"
+  authors:
+    - family-names: Mchara
+      given-names: Walid
+    - family-names: Raissi
+      given-names: Monia
+  journal: "Clean Energy"
+  year: 2026
+  volume: 10
+  start: 119
+  end: 135
+  doi: "10.1093/ce/zkag004"
