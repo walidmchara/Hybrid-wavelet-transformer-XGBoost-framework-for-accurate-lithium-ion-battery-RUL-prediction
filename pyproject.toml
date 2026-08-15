@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wtx-cbo-battery-rul"
+version = "1.0.0"
+description = "Wavelet-Transformer-XGBoost framework with Chaotic Billiards Optimization for lithium-ion battery RUL prediction"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  {name = "Walid Mchara"},
+  {name = "Monia Raissi"}
+]
+dependencies = [
+  "numpy>=1.24",
+  "pandas>=2.0",
+  "scipy>=1.10",
+  "scikit-learn>=1.3",
+  "PyWavelets>=1.4",
+  "torch>=2.1",
+  "xgboost>=2.0",
+  "joblib>=1.3",
+  "matplotlib>=3.7",
+  "pyyaml>=6.0"
+]
+
+[project.scripts]
+wtx-cbo-rul = "wtx_cbo.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
