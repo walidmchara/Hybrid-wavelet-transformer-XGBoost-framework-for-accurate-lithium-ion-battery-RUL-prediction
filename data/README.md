@@ -1,37 +1,27 @@
-# Data directory
+# NASA and CALCE battery datasets
 
-Place the battery datasets here.
+The repository includes measured discharge-cycle aggregates derived from the NASA PCoE and CALCE CS2 battery-aging archives.
 
-## NASA PCoE
+## Data organization
 
-Expected files for the experiment described in the paper:
+```text
+data/
+  processed/
+    nasa/    B0005.csv, B0006.csv, B0007.csv, B0018.csv, ...
+    calce/   CS2_35.csv, CS2_36.csv, CS2_37.csv, CS2_38.csv
+    manifest.json
+```
 
-- `B0005.mat`
-- `B0006.mat`
-- `B0007.mat`
-- `B0018.mat`
+The NASA directory covers 12 battery cells; the CALCE directory covers four CS2 cells across 106 source workbooks. The manifest records input archive checksums and per-file provenance.
 
-The paper uses B0005, B0006 and B0007 for training/validation and reserves B0018 for testing.
+## RUL benchmark
 
-## CALCE
+The paper's NASA experiment uses B0005, B0006 and B0007 for development and B0018 as the held-out cell. The `--nasa-mat` implementation consumes original MATLAB discharge traces, which are kept separately from the compact CSVs. The procedure for extracting the source data is in [../docs/REAL_DATA_SETUP.md](../docs/REAL_DATA_SETUP.md).
 
-You can also use pre-aggregated cycle-level CSV files. A CSV should contain one row per cycle and numeric feature columns such as:
+The processed CSV column `remaining_observed_cycles` is an observed-record countdown; it is **not** an independently established end-of-life (EOL) RUL label. A valid RUL benchmark requires a documented EOL criterion, cycle eligibility rules and censoring policy. An exploratory check on CALCE data can be run with:
 
-- voltage
-- current
-- temperature
-- capacity
-- cycle index
+```bash
+python main.py --csv data/processed/calce/CS2_35.csv --target-col remaining_observed_cycles --epochs 2 --output-dir outputs/calce_quickcheck
+```
 
-If a column named `rul` is present, pass `--target-col rul`. Otherwise the code generates an end-of-series remaining-cycle target.
-
-> Large datasets should not be committed to GitHub. Keep this folder locally and commit only this README.
-
-
-## User-supplied NASA + CALCE source archives
-
-The NASA outer ZIP contains nested archives with the `.mat` files. CALCE CS2_35–38 contain 25/26/27/28 `.xlsx` files; the original CALCE discharge capacity column is cumulative, so it must be differenced per cycle. See [`../docs/REAL_DATA_SETUP.md`](../docs/REAL_DATA_SETUP.md). Run `python scripts/prepare_battery_data.py --help` from the project root. Never commit the original archives or processed CSVs.
-
-## Committed cycle-level datasets
-
-The [processed/](processed/) directory contains real NASA and CALCE discharge-cycle CSVs and a [source manifest](processed/manifest.json). These files are derived aggregates. Full MATLAB traces and original CALCE Excel workbooks are not included in Git. Refer to [docs/REAL_DATA_SETUP.md](../docs/REAL_DATA_SETUP.md) for caveats about SOH and observed-end RUL.
+Sources: [NASA PCoE](https://www.nasa.gov/intelligent-systems-division/discovery-and-systems-health/pcoe/pcoe-data-set-repository/) and [CALCE/UMD](https://calce.umd.edu/data). Derived measurements should be distinguished from their original source files in any reported results.
