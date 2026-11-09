@@ -5,7 +5,7 @@
 [![XGBoost](https://img.shields.io/badge/XGBoost-2.0%2B-green)](https://xgboost.ai/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Official research-code style implementation of the hybrid **Wavelet–Transformer–XGBoost (WTX)** framework with **Chaotic Billiards Optimization (CBO)** for lithium-ion battery Remaining Useful Life (RUL) prediction.
+Research implementation of the hybrid **Wavelet–Transformer–XGBoost (WTX)** framework with **Chaotic Billiards Optimization (CBO)** for lithium-ion battery Remaining Useful Life (RUL) prediction.
 
 This repository corresponds to:
 
@@ -181,7 +181,7 @@ wtx-cbo-rul
 
 ### NASA PCoE
 
-Place these files in `data/`:
+The MATLAB-based NASA experiment reads the original `.mat` discharge traces from `data/`. These source files are managed separately from the versioned cycle-level CSV datasets:
 
 ```text
 data/
@@ -416,9 +416,9 @@ Potential extensions include:
 - embedded BMS quantization and pruning
 
 
-## Real NASA PCoE and CALCE CS2 datasets (2026-11-09 integration)
+## NASA PCoE and CALCE source data
 
-The original NASA ZIP and four CALCE CS2 ZIP archives have been inspected. Use the new offline converter in [`scripts/prepare_battery_data.py`](scripts/prepare_battery_data.py) and see [`docs/REAL_DATA_SETUP.md`](docs/REAL_DATA_SETUP.md) for commands, source links, quality controls, target definitions and limitations. Source archives and derived CSVs are deliberately ignored by Git. This integration validates the **data import interface**, not the published paper metrics.
+The datasets are documented in [data/README.md](data/README.md) and [docs/REAL_DATA_SETUP.md](docs/REAL_DATA_SETUP.md). Cycle-level NASA and CALCE CSV records are versioned under `data/processed/`, alongside a provenance manifest. Full-resolution source archives remain separate from the repository.
 
 
 ## Real NASA and CALCE data included
