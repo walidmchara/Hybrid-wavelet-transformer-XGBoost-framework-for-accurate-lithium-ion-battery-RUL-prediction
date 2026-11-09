@@ -419,3 +419,8 @@ Potential extensions include:
 ## Real NASA PCoE and CALCE CS2 datasets (2026-11-09 integration)
 
 The original NASA ZIP and four CALCE CS2 ZIP archives have been inspected. Use the new offline converter in [`scripts/prepare_battery_data.py`](scripts/prepare_battery_data.py) and see [`docs/REAL_DATA_SETUP.md`](docs/REAL_DATA_SETUP.md) for commands, source links, quality controls, target definitions and limitations. Source archives and derived CSVs are deliberately ignored by Git. This integration validates the **data import interface**, not the published paper metrics.
+
+
+## Real NASA and CALCE data included
+
+Twelve NASA and four CALCE cycle-level CSV datasets are provided under [data/processed/](data/processed/). See [provenance manifest](data/processed/manifest.json) and [real-data instructions](docs/REAL_DATA_SETUP.md). For the paper-aligned NASA `--nasa-mat` experiment, the original NASA `.mat` files must still be extracted locally. The supplied `remaining_observed_cycles` column is not confirmed end-of-life-based RUL.
