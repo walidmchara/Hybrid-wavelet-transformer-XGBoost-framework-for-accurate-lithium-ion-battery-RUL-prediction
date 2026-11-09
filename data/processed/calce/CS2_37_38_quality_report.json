@@ -1,0 +1,30 @@
+{
+  "method": "cycle-level dataset preparation, not scientific reproduction",
+  "nasa": {},
+  "calce": {
+    "CS2_37": {
+      "records": 1038,
+      "workbooks_scanned": 27,
+      "duplicates_removed": 0,
+      "file": "calce/CS2_37.csv",
+      "capacity_first_ah": 1.1349,
+      "capacity_last_ah": 0.1912,
+      "missing_temperature": true,
+      "boundary_cycle_candidates": 46
+    },
+    "CS2_38": {
+      "records": 1028,
+      "workbooks_scanned": 28,
+      "duplicates_removed": 50,
+      "file": "calce/CS2_38.csv",
+      "capacity_first_ah": 1.1395,
+      "capacity_last_ah": 0.2898,
+      "missing_temperature": true,
+      "boundary_cycle_candidates": 47
+    }
+  },
+  "source_zip_sha256": {
+    "CS2_37.zip": "8ed8aecbcbea2bcb17f455923a974be01ea21d7389210e1912d177de5b6af4a5",
+    "CS2_38.zip": "98787427c10478425efd4f54d823805724daff1d2fcbd822b3a2d7006a1051d8"
+  }
+}
