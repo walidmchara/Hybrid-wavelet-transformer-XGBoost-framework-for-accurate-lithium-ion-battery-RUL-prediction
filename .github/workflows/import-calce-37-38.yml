@@ -1,0 +1,45 @@
+name: Import complete CALCE CS2_37 and CS2_38 datasets
+on:
+  push:
+    paths:
+      - '.github/workflows/import-calce-37-38.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install loader requirements
+        run: python -m pip install numpy pandas scipy lxml
+      - name: Download and authenticate CALCE source archives
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p data/raw
+          curl --fail --location --retry 3 --max-time 300 'https://web.calce.umd.edu/batteries/data/CS2_37.zip' -o data/raw/CS2_37.zip
+          curl --fail --location --retry 3 --max-time 300 'https://web.calce.umd.edu/batteries/data/CS2_38.zip' -o data/raw/CS2_38.zip
+          echo '8ed8aecbcbea2bcb17f455923a974be01ea21d7389210e1912d177de5b6af4a5  data/raw/CS2_37.zip' | sha256sum --check
+          echo '98787427c10478425efd4f54d823805724daff1d2fcbd822b3a2d7006a1051d8  data/raw/CS2_38.zip' | sha256sum --check
+      - name: Convert full data and preserve quality report
+        run: |
+          python scripts/prepare_battery_data.py --calce data/raw/CS2_37.zip data/raw/CS2_38.zip --out /tmp/calce_output
+          mkdir -p data/processed/calce
+          cp /tmp/calce_output/calce/CS2_37.csv data/processed/calce/
+          cp /tmp/calce_output/calce/CS2_38.csv data/processed/calce/
+          cp /tmp/calce_output/quality_report.json data/processed/calce/CS2_37_38_quality_report.json
+      - name: Commit derived cycle-level datasets
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f data/processed/calce/CS2_37.csv data/processed/calce/CS2_38.csv data/processed/calce/CS2_37_38_quality_report.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Add full CALCE CS2_37 and CS2_38 derived datasets'
+            git push origin HEAD:main
+          fi
