@@ -26,6 +26,7 @@ not be interpreted as additional claims from the paper.
 """
 
 from __future__ import annotations
+from training_recovery import EpochCheckpoint
 
 import argparse
 import copy
@@ -511,6 +512,8 @@ def train_transformer(
     config: TransformerConfig,
     device: str,
     verbose: bool = True,
+    recovery=None,
+    resume: bool = False,
 ):
     model = RULTransformer(
         input_dim=X_train.shape[-1],
@@ -535,8 +538,16 @@ def train_transformer(
     best_val = float("inf")
     bad = 0
     history = []
+    start_epoch = 0
+    components = {"model": model, "optimizer": opt}
+    if resume:
+        if recovery is None: raise ValueError("Persistent checkpoint path required")
+        state = recovery.restore(components,device=device)
+        start_epoch=state["epoch"];best_val=state["best_val"]
+        best_state=state["best_state"];bad=state["bad"];history=state["history"]
+        print(f"Resuming Transformer from epoch {start_epoch}")
 
-    for epoch in range(1, config.max_epochs + 1):
+    for epoch in range(start_epoch+1, config.max_epochs + 1):
         model.train()
         train_losses = []
         for xb, yb in train_loader:
@@ -569,8 +580,11 @@ def train_transformer(
             bad = 0
         else:
             bad += 1
-            if bad >= config.patience:
-                break
+        if recovery is not None:
+            recovery.save(epoch,components,{"best_val":best_val,"best_state":best_state,
+                                            "bad":bad,"history":history})
+        if bad >= config.patience:
+            break
 
     model.load_state_dict(best_state)
     return model, history
@@ -777,10 +791,12 @@ def train_full_hybrid(
     xgb_cfg: XGBConfig,
     device: str,
     verbose: bool = True,
+    recovery=None,
+    resume: bool = False,
 ):
     transformer, history = train_transformer(
         data.X_train, data.y_train, data.X_val, data.y_val,
-        transformer_cfg, device, verbose=verbose
+        transformer_cfg, device, verbose=verbose, recovery=recovery, resume=resume
     )
     tr_pred = predict_transformer(transformer, data.X_train, device)
     xgb = fit_xgb_residual(data.X_train, data.y_train, tr_pred, xgb_cfg)
@@ -902,6 +918,8 @@ def parse_args():
     p.add_argument("--batch-size", type=int, default=32)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--output-dir", default="outputs/wtx_cbo")
+    p.add_argument("--checkpoint-dir", help="Persistent epoch recovery directory")
+    p.add_argument("--resume",action="store_true")
     return p.parse_args()
 
 
@@ -1022,8 +1040,18 @@ def main():
         print("Best Transformer config:", asdict(tcfg))
         print("Best XGBoost config:", asdict(xcfg))
 
+    if args.resume and args.cbo:
+        raise ValueError("Resume is only supported with fixed hyperparameters (without --cbo)")
+    source_files = args.nasa_mat if args.nasa_mat else [args.csv]
+    recovery = EpochCheckpoint(args.checkpoint_dir or Path(args.output_dir)/"recovery", {
+        "transformer_config":asdict(tcfg),"xgb_config":asdict(xcfg),
+        "source_files":[(str(p),Path(p).stat().st_size) for p in source_files],
+        "seed":args.seed,"lookback":args.lookback,"features":args.feature_cols,
+        "target":args.target_col,"test_battery":args.test_battery,
+    })
     t0 = time.perf_counter()
-    transformer, xgb, history = train_full_hybrid(data, tcfg, xcfg, device)
+    transformer, xgb, history = train_full_hybrid(data, tcfg, xcfg, device,
+                                                   recovery=recovery, resume=args.resume)
     train_seconds = time.perf_counter() - t0
 
     val_metrics, val_pred, _, _ = evaluate_hybrid(
