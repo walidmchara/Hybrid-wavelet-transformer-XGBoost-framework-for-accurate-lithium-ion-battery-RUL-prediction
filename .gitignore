@@ -33,3 +33,6 @@ data/**/*.zip
 data/**/*.mat
 data/**/*.xlsx
 # Derived dataset CSVs are tracked; original raw ZIP/MAT/XLSX archives remain ignored.
+# Recovery checkpoints (keep out of normal Git history)
+**/recovery/
+**/.snapshot-*.pt
