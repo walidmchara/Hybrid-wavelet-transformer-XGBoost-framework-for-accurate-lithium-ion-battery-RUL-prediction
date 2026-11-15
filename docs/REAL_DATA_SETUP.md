@@ -50,10 +50,10 @@ The versioned CSVs are derived from measured battery-aging data. They should be 
   `remaining_observed_cycles` as a scientific RUL label.
 - The EOL threshold must be justified against the paper, nominal capacity and
   battery-specific protocol. The Colab default 1.4 Ah is **illustrative only**.
-- **Known unresolved methodological risk:** full-series DWT decomposition and
-  noncausal preprocessing may incorporate future information. Do not describe
-  these runs as leakage-free prospective forecasting until the transformations
-  have been made causal and revalidated.
+- **Known unresolved methodological risk:** the previously identified future-information risk in full-series DWT and
+  outlier fitting has been addressed with past-only DWT and train-prefix IQR
+  fitting. Independent cross-battery validity and full paper fidelity are
+  **not yet demonstrated**; validation remains necessary.
 - The CBO optimizer search stage is not resumable; fixed-parameter training
   supports checkpoint resumption. Colab artifacts should remain on Drive.
 
