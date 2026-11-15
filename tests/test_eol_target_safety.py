@@ -53,5 +53,6 @@ def test_csv_requires_explicit_verified_target(tmp_path):
     sample().to_csv(path, index=False)
     with pytest.raises(ValueError, match="Explicit"):
         load_generic_csv(path)
+    sample().assign(remaining_observed_cycles=[4,3,2,1,0]).to_csv(path,index=False)
     with pytest.raises(ValueError, match="dataset-end proxy"):
-        sample().assign(remaining_observed_cycles=[4,3,2,1,0]).to_csv(path,index=False) or load_generic_csv(path, target_col="remaining_observed_cycles")
+        load_generic_csv(path, target_col="remaining_observed_cycles")
