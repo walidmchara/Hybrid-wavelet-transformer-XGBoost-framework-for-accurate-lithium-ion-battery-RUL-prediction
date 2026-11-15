@@ -36,7 +36,7 @@ def restore_rng(state: dict) -> None:
     np.random.set_state(state["numpy"])
     torch.set_rng_state(state["torch"].cpu())
     if state.get("cuda") is not None and torch.cuda.is_available():
-        torch.cuda.set_rng_state_all(state["cuda"])
+        torch.cuda.set_rng_state_all([s.detach().to(device="cpu", dtype=torch.uint8) for s in state["cuda"]])
 
 
 class EpochCheckpoint:
