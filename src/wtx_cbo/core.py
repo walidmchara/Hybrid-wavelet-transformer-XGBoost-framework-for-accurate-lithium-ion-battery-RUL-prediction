@@ -236,24 +236,30 @@ def spline_fill(series: pd.Series) -> pd.Series:
         return s.interpolate(limit_direction="both").ffill().bfill()
 
 
-def clean_numeric_frame(df: pd.DataFrame, feature_cols: Sequence[str]) -> pd.DataFrame:
-    out = df.copy()
-
+def fit_iqr_bounds(frame: pd.DataFrame, feature_cols: Sequence[str]):
+    """Fit clipping bounds on training observations only."""
+    bounds = {}
     for col in feature_cols:
-        out[col] = spline_fill(out[col])
-        out[col] = out[col].rolling(window=3, min_periods=1, center=True).mean()
-
-    # IQR winsorization: keeps chronological length intact while suppressing
-    # transient outliers. The paper states IQR outlier removal; clipping is
-    # used here to avoid destroying sequence continuity.
-    for col in feature_cols:
-        q1, q3 = out[col].quantile([0.25, 0.75])
+        q1, q3 = frame[col].quantile([.25, .75])
         iqr = q3 - q1
-        if not np.isfinite(iqr) or iqr == 0:
-            continue
-        lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
-        out[col] = out[col].clip(lo, hi)
+        if np.isfinite(iqr) and iqr > 0:
+            bounds[col] = (float(q1-1.5*iqr), float(q3+1.5*iqr))
+    return bounds
 
+
+def clean_numeric_frame(df: pd.DataFrame, feature_cols: Sequence[str],
+                        bounds=None) -> pd.DataFrame:
+    """Causal forward-fill and trailing mean; optional train-fitted clipping."""
+    out = df.copy()
+    for col in feature_cols:
+        s = pd.to_numeric(out[col], errors="coerce")
+        # A leading missing value has no past observation; use a fixed zero,
+        # never future backfill or full-series spline interpolation.
+        s = s.ffill().fillna(0.0)
+        s = s.rolling(window=3, min_periods=1).mean()
+        if bounds and col in bounds:
+            s = s.clip(*bounds[col])
+        out[col] = s
     return out
 
 
@@ -293,33 +299,36 @@ def dwt_multiscale_same_length(
     wavelet: str = "db4",
     level: int = 4,
 ) -> np.ndarray:
-    """
-    For each original feature, creates same-length reconstructed DWT bands:
-      A_level, D_level, D_(level-1), ..., D_1
-    Thus level=4 gives five multiscale channels per input feature.
+    """Causal, same-length reconstructed DWT bands (A_L, D_L ... D_1).
 
-    This retains temporal alignment required by the Transformer.
+    Each output at time t uses ONLY x[:t+1]. A fixed-length trailing window,
+    padded at its left edge, keeps requested band count and time alignment.
+    Unlike wavelet-decomposing an entire train/validation/test stream, this
+    representation cannot inspect future battery discharge samples.
     """
     values = np.asarray(values, dtype=float)
+    if values.ndim != 2 or not len(values) or not np.isfinite(values).all():
+        raise ValueError("Expected finite nonempty 2-D time series")
+    if level < 1:
+        raise ValueError("wavelet level must be >= 1")
+    wav = pywt.Wavelet(wavelet)
+    history = max(2 ** (level + 1) * (wav.dec_len - 1), 2 ** (level + 2))
     n, d = values.shape
-    out = []
-
+    output = np.empty((n, d * (level + 1)), dtype=float)
     for j in range(d):
-        x = values[:, j]
-        max_level = pywt.dwt_max_level(len(x), pywt.Wavelet(wavelet).dec_len)
-        lev = max(1, min(level, max_level)) if max_level > 0 else 1
-        coeffs = pywt.wavedec(x, wavelet=wavelet, level=lev, mode="symmetric")
-
-        # Isolate and reconstruct each coefficient group separately.
-        for k in range(len(coeffs)):
-            isolated = [np.zeros_like(c) for c in coeffs]
-            isolated[k] = coeffs[k]
-            rec = pywt.waverec(isolated, wavelet=wavelet, mode="symmetric")[:n]
-            if len(rec) < n:
-                rec = np.pad(rec, (0, n - len(rec)), mode="edge")
-            out.append(rec)
-
-    return np.stack(out, axis=1)
+        for t in range(n):
+            prefix = values[max(0, t + 1 - history): t + 1, j]
+            if len(prefix) < history:
+                prefix = np.pad(prefix, (history - len(prefix), 0), mode="edge")
+            coeffs = pywt.wavedec(prefix, wavelet=wavelet, level=level,
+                                  mode="symmetric")
+            for band in range(level + 1):
+                isolated = [np.zeros_like(part) for part in coeffs]
+                isolated[band] = coeffs[band]
+                rec = pywt.waverec(isolated, wavelet=wavelet,
+                                   mode="symmetric")
+                output[t, j * (level + 1) + band] = rec[-1]
+    return output
 
 
 @dataclass
@@ -377,8 +386,10 @@ def prepare_single_series(
     if len(te) < lookback:
         warnings.warn("Test segment shorter than lookback; windows use preceding chronological context.")
 
-    # clean entire chronological stream per-feature but feature selection/scaling fit on train
-    cleaned = clean_numeric_frame(df, feature_cols)
+    # Preprocessing and IQR clipping are causal; clipping bounds are TRAIN-only.
+    preliminary = clean_numeric_frame(df, feature_cols)
+    bounds = fit_iqr_bounds(preliminary.iloc[:len(tr)], feature_cols)
+    cleaned = clean_numeric_frame(df, feature_cols, bounds=bounds)
     tr_c = cleaned.iloc[:len(tr)].copy()
 
     selected = select_features(tr_c.assign(rul=tr["rul"].values), feature_cols,
@@ -945,9 +956,20 @@ def prepare_multi_battery_nasa(args) -> PreparedData:
         all_train = pd.concat(train_frames, ignore_index=True)
         feature_cols = safe_predictor_columns(all_train, args.feature_cols)
 
-        cleaned_train_cells = [clean_numeric_frame(d, feature_cols) for d in train_frames]
-        merged_clean = pd.concat(cleaned_train_cells, ignore_index=True)
-        merged_target = pd.concat([d[["rul"]] for d in train_frames], ignore_index=True)
+        preliminary = [clean_numeric_frame(d, feature_cols) for d in train_frames]
+        # Calibration uses early training prefixes only, never held-out
+        # battery labels or development validation suffixes.
+        prefix_lengths = [max(1, int(0.80 * len(d))) for d in train_frames]
+        calibration = pd.concat([d.iloc[:k] for d, k in
+                                 zip(preliminary, prefix_lengths)], ignore_index=True)
+        bounds = fit_iqr_bounds(calibration, feature_cols)
+        cleaned_train_cells = [clean_numeric_frame(d, feature_cols, bounds=bounds)
+                               for d in train_frames]
+        merged_clean = pd.concat([d.iloc[:k] for d, k in
+                                  zip(cleaned_train_cells, prefix_lengths)],
+                                 ignore_index=True)
+        merged_target = pd.concat([d[["rul"]].iloc[:k] for d, k in
+                                   zip(train_frames, prefix_lengths)], ignore_index=True)
 
         selected = select_features(
             merged_clean.assign(rul=merged_target["rul"].values),
@@ -969,7 +991,7 @@ def prepare_multi_battery_nasa(args) -> PreparedData:
 
         # Exclusive held-out test battery.
         test_raw = test_frames[0].reset_index(drop=True)
-        test_clean = clean_numeric_frame(test_raw, selected)
+        test_clean = clean_numeric_frame(test_raw, selected, bounds=bounds)
         test_vals = scaler.transform(test_clean[selected].values)
         test_ms = dwt_multiscale_same_length(test_vals, args.wavelet, args.wavelet_level)
         Xte, yte, ite = make_windows(test_ms, test_raw["rul"].values, args.lookback)
@@ -1096,7 +1118,7 @@ def main():
         "eol_capacity_ah": args.eol_capacity_ah,
         "rul_definition": ("capacity_threshold_first_observed_crossing"
                            if args.nasa_mat else "explicit_external_verified_csv_target"),
-        "known_preprocessing_limitations": "Full-series DWT and certain preprocessing may use future samples; independent causal evaluation still required.",
+        "preprocessing": "causal trailing rolling mean, train-fitted IQR and per-timestep past-only DWT",
         "training_seconds": train_seconds,
         "batch1_latency_seconds": latency,
         **cbo_info,
