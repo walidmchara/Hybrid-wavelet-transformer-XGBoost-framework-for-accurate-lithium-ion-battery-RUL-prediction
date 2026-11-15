@@ -16,6 +16,39 @@ This repository corresponds to:
 
 ---
 
+## Google Colab training — verified EOL safeguards (15 Nov 2026)
+
+**[Open WTX–CBO Colab notebook](https://colab.research.google.com/github/walidmchara/Hybrid-wavelet-transformer-XGBoost-framework-for-accurate-lithium-ion-battery-RUL-prediction/blob/main/notebooks/WTX_CBO_CleanEnergy_2026_Training.ipynb)**
+
+The notebook clones this repository, mounts Google Drive, checks original NASA MATLAB
+source files, tests observed capacity EOL threshold crossings, runs tests, then supports
+a short smoke test and the full Transformer–XGBoost training with persistent checkpoint
+recovery. Select a GPU runtime in Colab; the repo does not start background training.
+
+**Safety changes:** NASA training now requires explicit `--eol-capacity-ah` in Ah.
+A battery that does not reach this measured EOL event is **censored**, and training
+stops rather than inventing a zero-RUL endpoint. CSV training requires an explicit,
+verified `--target-col` (the `remaining_observed_cycles` proxy is rejected).
+Capacity, SOH, RUL and related target proxies are excluded from automatic predictors.
+
+**Important limitations:** The proposed 1.4 Ah notebook setting is a provisional
+example, **not** confirmation of the published paper's EOL definition. Verify the
+paper's actual threshold, cell-specific nominal capacities and censoring policy first.
+The original full-series DWT, interpolation/outlier operations, and residual fitting
+still require a causal, cross-cell methodological audit before claiming independent
+reproduction or leakage-free performance. The CBO search phase cannot currently resume;
+for stable long runs use fixed parameters. A successful run is not proof of matching
+the published numerical findings.
+
+```bash
+# Example only: change the threshold to the justified EOL definition.
+python main.py --nasa-mat data/B0005.mat data/B0006.mat data/B0007.mat data/B0018.mat \
+  --test-battery B0018 --eol-capacity-ah 1.4 --epochs 100 \
+  --output-dir outputs/nasa_b0018
+```
+
+---
+
 ## Overview
 
 Accurate RUL prediction is essential for predictive maintenance, battery safety, and intelligent battery-management systems in electric vehicles. The WTX-CBO framework combines four complementary mechanisms:
