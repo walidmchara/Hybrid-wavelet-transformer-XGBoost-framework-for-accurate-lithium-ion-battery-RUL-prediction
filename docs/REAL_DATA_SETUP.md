@@ -22,7 +22,7 @@ A capacity-based SOH ratio is not a remaining-useful-life target. The data table
 ## Experimental command
 
 ```bash
-python main.py --csv data/processed/calce/CS2_35.csv --target-col remaining_observed_cycles --epochs 2 --output-dir outputs/calce_check
+# The remaining_observed_cycles proxy is NOT accepted as verified RUL.\n# Prepare a documented EOL-based RUL target first, then run:\npython main.py --csv data/processed/calce/CS2_35_eol_labeled.csv --target-col rul_eol --epochs 2 --output-dir outputs/calce_check
 ```
 
 The column `remaining_observed_cycles` counts down to the last recorded discharge cycle; it is not a verified EOL-based RUL label. For the NASA benchmark with B0005/B0006/B0007 as development cells and B0018 held out, run `main.py --nasa-mat` against original MATLAB files extracted from the supplied NASA archive. A scientifically meaningful RUL requires a published EOL threshold and censoring rule.
@@ -36,3 +36,25 @@ python scripts/prepare_battery_data.py --nasa 'data/raw/5.+Battery+Data+Set.zip'
 ```
 
 The versioned CSVs are derived from measured battery-aging data. They should be cited through their original data providers, and experimental metrics must be independently verified before comparison with published results.
+
+
+## November 2026 safeguard and reproducibility status
+
+- For NASA original MATLAB discharge cycles, `--eol-capacity-ah <Ah>` is
+  required and labeling ends at the first **observed** threshold crossing.
+- Batteries without an observed EOL crossing are censored; the current direct
+  regression baseline intentionally raises an error instead of manufacturing a target.
+- `capacity`, `SOH`, `rul` and other direct target proxies are excluded
+  from automatic feature selection.
+- For CSV data, specify a separately verified `--target-col`. Never use
+  `remaining_observed_cycles` as a scientific RUL label.
+- The EOL threshold must be justified against the paper, nominal capacity and
+  battery-specific protocol. The Colab default 1.4 Ah is **illustrative only**.
+- **Known unresolved methodological risk:** full-series DWT decomposition and
+  noncausal preprocessing may incorporate future information. Do not describe
+  these runs as leakage-free prospective forecasting until the transformations
+  have been made causal and revalidated.
+- The CBO optimizer search stage is not resumable; fixed-parameter training
+  supports checkpoint resumption. Colab artifacts should remain on Drive.
+
+[Colab training notebook](../notebooks/WTX_CBO_CleanEnergy_2026_Training.ipynb)
