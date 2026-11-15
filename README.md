@@ -34,9 +34,10 @@ Capacity, SOH, RUL and related target proxies are excluded from automatic predic
 **Important limitations:** The proposed 1.4 Ah notebook setting is a provisional
 example, **not** confirmation of the published paper's EOL definition. Verify the
 paper's actual threshold, cell-specific nominal capacities and censoring policy first.
-The original full-series DWT, interpolation/outlier operations, and residual fitting
-still require a causal, cross-cell methodological audit before claiming independent
-reproduction or leakage-free performance. The CBO search phase cannot currently resume;
+The new past-only DWT and train-fitted IQR bounds avoid identified look-ahead in those stages.
+These modifications differ from the original implementation; full paper-protocol,
+model-selection, label and external-validation audits remain necessary before claiming
+independent reproduction of published performance. The CBO search phase cannot currently resume;
 for stable long runs use fixed parameters. A successful run is not proof of matching
 the published numerical findings.
 
