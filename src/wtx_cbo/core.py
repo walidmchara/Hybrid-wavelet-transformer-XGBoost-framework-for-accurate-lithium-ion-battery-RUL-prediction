@@ -57,6 +57,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from xgboost import XGBRegressor
+from .targets import eol_rul_from_capacity, safe_predictor_columns
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +179,7 @@ def load_nasa_battery_mat(path: str | Path) -> pd.DataFrame:
     if df.empty:
         raise ValueError(f"No discharge cycles extracted from {path}")
     df["battery_id"] = path.stem
-    df["rul"] = np.arange(len(df) - 1, -1, -1, dtype=float)
+    # No RUL is assigned here. An explicit observed EOL event is required.
     return df
 
 
@@ -201,10 +202,14 @@ def load_generic_csv(path: str | Path,
         df[cycle_col] = np.arange(1, len(df) + 1)
     df = df.sort_values(cycle_col).reset_index(drop=True)
 
-    if target_col and target_col in df.columns:
-        df["rul"] = pd.to_numeric(df[target_col], errors="coerce")
-    elif "rul" not in df.columns:
-        df["rul"] = np.arange(len(df) - 1, -1, -1, dtype=float)
+    if not target_col or target_col not in df.columns:
+        raise ValueError("Explicit --target-col with verified EOL-based RUL required; "
+                         "dataset-end countdown is not a RUL label.")
+    if target_col == "remaining_observed_cycles":
+        raise ValueError("remaining_observed_cycles is a dataset-end proxy, not verified RUL.")
+    df["rul"] = pd.to_numeric(df[target_col], errors="coerce")
+    if not np.isfinite(df["rul"]).all() or (df["rul"] < 0).any():
+        raise ValueError("RUL target has missing, nonfinite or negative values")
 
     df["battery_id"] = battery_id or path.stem
     return df
@@ -366,12 +371,7 @@ def prepare_single_series(
     information from later segments while preserving boundary context.
     """
     df = df.sort_values("cycle" if "cycle" in df.columns else df.index.name or df.columns[0]).reset_index(drop=True)
-    numeric = [c for c in df.select_dtypes(include=np.number).columns if c not in {"rul"}]
-    if feature_cols is None:
-        feature_cols = [c for c in numeric if c != "cycle"]
-        if "cycle" in numeric:
-            feature_cols = ["cycle"] + feature_cols
-    feature_cols = list(feature_cols)
+    feature_cols = safe_predictor_columns(df, feature_cols)
 
     tr, va, te = _split_chronological(df, train_ratio, val_ratio)
     if len(te) < lookback:
@@ -900,7 +900,9 @@ def parse_args():
     p.add_argument("--test-battery", default=None,
                    help="For multiple NASA files, battery ID reserved exclusively for test (e.g. B0018).")
     p.add_argument("--target-col", default=None,
-                   help="CSV target column; otherwise remaining rows are used as RUL.")
+                   help="Required for CSV: verified EOL-based RUL column; never dataset-end count.")
+    p.add_argument("--eol-capacity-ah", type=float, default=None,
+                   help="Required with --nasa-mat: explicitly justified absolute EOL capacity (Ah).")
     p.add_argument("--feature-cols", nargs="+", default=None)
     p.add_argument("--lookback", type=int, default=32)
     p.add_argument("--top-k-features", type=int, default=None)
@@ -924,7 +926,11 @@ def parse_args():
 
 
 def prepare_multi_battery_nasa(args) -> PreparedData:
-    frames = [load_nasa_battery_mat(f) for f in args.nasa_mat]
+    if args.eol_capacity_ah is None:
+        raise ValueError("Specify --eol-capacity-ah for NASA. No implicit dataset-end RUL.")
+    frames = [eol_rul_from_capacity(load_nasa_battery_mat(f),
+                                   threshold_ah=args.eol_capacity_ah)
+              for f in args.nasa_mat]
 
     if args.test_battery:
         train_frames = [d for d in frames if str(d["battery_id"].iloc[0]) != args.test_battery]
@@ -937,8 +943,7 @@ def prepare_multi_battery_nasa(args) -> PreparedData:
         # Merge training cells but preserve chronological sequences by battery.
         # Feature selection/scaler fit from all training-cell rows.
         all_train = pd.concat(train_frames, ignore_index=True)
-        numeric = [c for c in all_train.select_dtypes(include=np.number).columns if c != "rul"]
-        feature_cols = args.feature_cols or numeric
+        feature_cols = safe_predictor_columns(all_train, args.feature_cols)
 
         cleaned_train_cells = [clean_numeric_frame(d, feature_cols) for d in train_frames]
         merged_clean = pd.concat(cleaned_train_cells, ignore_index=True)
@@ -1048,6 +1053,7 @@ def main():
         "source_files":[(str(p),Path(p).stat().st_size) for p in source_files],
         "seed":args.seed,"lookback":args.lookback,"features":args.feature_cols,
         "target":args.target_col,"test_battery":args.test_battery,
+        "eol_capacity_ah":args.eol_capacity_ah,
     })
     t0 = time.perf_counter()
     transformer, xgb, history = train_full_hybrid(data, tcfg, xcfg, device,
@@ -1087,6 +1093,10 @@ def main():
             "wavelet_level": args.wavelet_level,
             "chronological_split": "80/10/10 for single series; exclusive held-out cell supported",
         },
+        "eol_capacity_ah": args.eol_capacity_ah,
+        "rul_definition": ("capacity_threshold_first_observed_crossing"
+                           if args.nasa_mat else "explicit_external_verified_csv_target"),
+        "known_preprocessing_limitations": "Full-series DWT and certain preprocessing may use future samples; independent causal evaluation still required.",
         "training_seconds": train_seconds,
         "batch1_latency_seconds": latency,
         **cbo_info,
