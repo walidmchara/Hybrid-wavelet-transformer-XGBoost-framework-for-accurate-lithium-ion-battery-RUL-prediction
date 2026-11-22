@@ -321,6 +321,8 @@ The quick smoke test above is a separate short training check; neither it nor th
 
 ## Generic CSV experiment
 
+The explicitly selected target is copied to `rul` and removed from the candidate predictors, including when it has a custom name. Other columns must still be audited for indirect target proxies and information unavailable at prediction time.
+
 ```bash
 python main.py \
   --csv data/CS2_38.csv \

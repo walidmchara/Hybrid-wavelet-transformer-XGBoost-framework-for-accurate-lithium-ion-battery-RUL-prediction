@@ -56,3 +56,21 @@ def test_csv_requires_explicit_verified_target(tmp_path):
     sample().assign(remaining_observed_cycles=[4,3,2,1,0]).to_csv(path,index=False)
     with pytest.raises(ValueError, match="dataset-end proxy"):
         load_generic_csv(path, target_col="remaining_observed_cycles")
+
+
+def test_custom_target_is_not_available_as_a_predictor(tmp_path):
+    path = tmp_path / "cells.csv"
+    sample().assign(days_left=[4, 3, 2, 1, 0]).to_csv(path, index=False)
+    loaded = load_generic_csv(path, target_col="days_left")
+    assert loaded["rul"].tolist() == [4., 3., 2., 1., 0.]
+    assert "days_left" not in loaded.columns
+    assert "days_left" not in safe_predictor_columns(loaded)
+    with pytest.raises(ValueError, match="not present"):
+        safe_predictor_columns(loaded, ["days_left"])
+
+
+def test_csv_rejects_cycle_identifier_as_target(tmp_path):
+    path = tmp_path / "cells.csv"
+    sample().to_csv(path, index=False)
+    with pytest.raises(ValueError, match="cycle or battery identifier"):
+        load_generic_csv(path, target_col="cycle")

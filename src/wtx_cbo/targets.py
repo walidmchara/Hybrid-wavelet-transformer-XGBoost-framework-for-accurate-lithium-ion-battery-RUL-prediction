@@ -15,6 +15,10 @@ LABEL_COLUMNS = {"rul", "remaining_observed_cycles", "target", "soh",
 def safe_predictor_columns(frame: pd.DataFrame, requested=None):
     """Only time-available numeric covariates; exclude direct label proxies."""
     columns = list(requested) if requested is not None else list(frame.select_dtypes(include=np.number))
+    if requested is not None:
+        missing = [c for c in columns if c not in frame.columns]
+        if missing:
+            raise ValueError(f"Requested predictors not present in the input: {missing}")
     forbidden = [c for c in columns if c.lower() in LABEL_COLUMNS or
                  any(token in c.lower() for token in ("capacity", "soh", "rul", "remaining_", "eol_"))]
     if forbidden and requested is not None:

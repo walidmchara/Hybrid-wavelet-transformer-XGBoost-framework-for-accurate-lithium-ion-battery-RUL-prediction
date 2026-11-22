@@ -193,8 +193,7 @@ def load_generic_csv(path: str | Path,
     Requirements:
       - one row per cycle, or a pre-aggregated cycle-level table
       - numeric feature columns
-      - optional target column. If absent, RUL is generated as remaining
-        rows/cycles to end of the table.
+      - an explicit, verified EOL-based RUL target column
     """
     path = Path(path)
     df = pd.read_csv(path)
@@ -207,9 +206,13 @@ def load_generic_csv(path: str | Path,
                          "dataset-end countdown is not a RUL label.")
     if target_col == "remaining_observed_cycles":
         raise ValueError("remaining_observed_cycles is a dataset-end proxy, not verified RUL.")
+    if target_col in {cycle_col, "battery_id"}:
+        raise ValueError("Target column must not be a cycle or battery identifier.")
     df["rul"] = pd.to_numeric(df[target_col], errors="coerce")
     if not np.isfinite(df["rul"]).all() or (df["rul"] < 0).any():
         raise ValueError("RUL target has missing, nonfinite or negative values")
+    if target_col != "rul":
+        df = df.drop(columns=[target_col])
 
     df["battery_id"] = battery_id or path.stem
     return df
