@@ -307,6 +307,18 @@ This intentionally uses a small population, few CBO iterations and few training 
 
 ---
 
+## Tests
+
+Run the repository test suite from the project root:
+
+```bash
+python -m pytest -q
+```
+
+The quick smoke test above is a separate short training check; neither it nor the unit tests establish the scientific validity of an experiment.
+
+---
+
 ## Generic CSV experiment
 
 ```bash
